@@ -1,0 +1,1678 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Gun Simulator</title>
+<style>
+/* ── LANDSCAPE LOCK ── */
+@media (orientation: portrait) {
+  #rotate-msg { display: flex !important; }
+  #app { display: none !important; }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+body {
+  background: #0a0b0d;
+  color: #fff;
+  font-family: 'Rajdhani', 'Arial Narrow', Arial, sans-serif;
+  overflow: hidden;
+  width: 100vw; height: 100vh;
+  user-select: none;
+}
+
+/* ── ROTATE MESSAGE ── */
+#rotate-msg {
+  display: none;
+  position: fixed; inset: 0; z-index: 9999;
+  background: #0a0b0d;
+  flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px;
+}
+#rotate-msg svg { width: 60px; height: 60px; fill: #e05c2a; animation: rotateHint 1.5s ease-in-out infinite; }
+#rotate-msg p { color: #aaa; font-size: 16px; letter-spacing: 1px; }
+@keyframes rotateHint { 0%,100%{transform:rotate(0)} 50%{transform:rotate(90deg)} }
+
+/* ── CSS VARS ── */
+:root {
+  --accent: #e05c2a;
+  --accent2: #f5c842;
+  --bg0: #0a0b0d;
+  --bg1: #111318;
+  --bg2: #1a1d24;
+  --border: rgba(255,255,255,0.08);
+}
+
+/* ── APP LAYOUT ── */
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 100vw; height: 100vh;
+  overflow: hidden;
+}
+
+/* ══════════════════════════════════════
+   TOP HUD
+══════════════════════════════════════ */
+#hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  height: 44px;
+  flex-shrink: 0;
+  z-index: 10;
+  position: relative;
+}
+#gun-name { font-size: 15px; font-weight: 700; letter-spacing: 2px; color: #fff; }
+#gun-cal  { font-size: 10px; color: #666; letter-spacing: 1px; margin-top: 1px; }
+#hud-coins { position:absolute; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:5px; background:rgba(245,200,66,0.1); border:1px solid rgba(245,200,66,0.3); border-radius:6px; padding:4px 10px; pointer-events:auto; }
+#coin-display { font-size:14px; font-weight:700; color:#f5c842; min-width:36px; text-align:right; }
+#btn-buy-coins { background:#f5c842; color:#222; border:none; border-radius:4px; font-size:11px; font-weight:700; padding:2px 7px; cursor:pointer; }
+.coin-pop { position:fixed; font-size:13px; font-weight:700; color:#f5c842; pointer-events:none; z-index:99; animation:coinPop 1.2s ease-out forwards; }
+@keyframes coinPop { 0%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-40px)} }
+.hud-ammo { display: flex; align-items: center; gap: 8px; }
+.ammo-nums { text-align: right; }
+#ammo-cur { font-size: 22px; font-weight: 700; line-height: 1; color: #fff; }
+#ammo-max { font-size: 11px; color: #555; }
+#ammo-bar-wrap { width: 80px; height: 4px; background: var(--bg2); border-radius: 2px; overflow: hidden; }
+#ammo-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.1s, background 0.3s; width: 100%; }
+/* ── AD OVERLAY (placeholder — conectar AdMob aquí) ── */
+#ad-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:200; flex-direction:column; align-items:center; justify-content:center; gap:14px; }
+#ad-overlay.show { display:flex; }
+#ad-box { background:#111; border:1px solid #333; border-radius:10px; width:320px; padding:20px; text-align:center; }
+#ad-box p { color:#aaa; font-size:12px; margin-bottom:10px; }
+#ad-timer { font-size:28px; font-weight:700; color:#f5c842; }
+#ad-skip { margin-top:14px; background:var(--accent); color:#fff; border:none; border-radius:6px; padding:9px 24px; font-size:13px; font-weight:700; cursor:pointer; display:none; }
+/* ── BUY COINS MODAL ── */
+#buy-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:200; align-items:center; justify-content:center; }
+#buy-overlay.show { display:flex; }
+#buy-box { background:#111; border:1px solid #333; border-radius:10px; width:300px; padding:20px; }
+#buy-box h3 { color:#f5c842; font-size:15px; letter-spacing:1px; margin-bottom:14px; text-align:center; }
+.buy-option { background:#1a1d24; border:1px solid #2a2d34; border-radius:8px; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:border-color 0.15s; }
+.buy-option:hover { border-color:#f5c842; }
+.buy-option-coins { color:#f5c842; font-weight:700; font-size:14px; }
+.buy-option-price { color:#888; font-size:11px; }
+#buy-close { width:100%; margin-top:6px; background:transparent; border:1px solid #333; color:#666; border-radius:6px; padding:8px; cursor:pointer; font-family:inherit; }
+
+/* ══════════════════════════════════════
+   MAIN AREA
+══════════════════════════════════════ */
+#main {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── STAGE ── */
+#stage {
+  flex: 1;
+  position: relative;
+  cursor: none;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 30% 60%, #151820 0%, #0a0b0d 70%);
+}
+
+/* ── GUN ── */
+#gun-wrap {
+  position: absolute;
+  bottom: 18%;
+  right: 15%;
+  width: 55vw;
+  max-width: 620px;
+  display: flex;
+  align-items: center;
+  transform-origin: 85% 60%;
+  pointer-events: none;
+}
+#gun-svg-container svg { width: 100%; height: auto; filter: drop-shadow(0 8px 32px rgba(0,0,0,0.7)); }
+
+/* ── MUZZLE FLASH ── */
+#muzzle-flash {
+  position: absolute;
+  right: -3%;
+  top: 50%;
+  transform: translateY(-50%) scale(1);
+  opacity: 0;
+  pointer-events: none;
+  width: 80px; height: 80px;
+}
+
+/* ── SCOPE ── */
+#scope {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50%, transparent 28%, rgba(0,0,0,0.9) 30%);
+  pointer-events: none;
+  z-index: 5;
+}
+#scope::before, #scope::after {
+  content: ''; position: absolute;
+  background: rgba(255,255,255,0.3);
+}
+#scope::before { left: 50%; top: 0; width: 1px; height: 100%; }
+#scope::after  { top: 50%; left: 0; height: 1px; width: 100%; }
+
+/* ── SCREEN FLASH ── */
+#screen-flash {
+  position: absolute; inset: 0;
+  opacity: 0; pointer-events: none; z-index: 4;
+  transition: opacity 0.08s;
+}
+
+/* ── FLAME ── */
+#flame {
+  position: absolute;
+  right: 42%; top: 50%;
+  transform: translateY(-50%);
+  width: 120px; height: 50px;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at left, rgba(255,200,0,0.95), rgba(255,50,0,0.6), transparent);
+  border-radius: 0 40px 40px 0;
+  z-index: 3;
+}
+
+/* ── HEAT / SPIN ── */
+#spin-ind {
+  position: absolute; top: 50%; right: 46%;
+  width: 28px; height: 28px;
+  transform: translateY(-50%);
+  opacity: 0; pointer-events: none;
+}
+#heat {
+  position: absolute; top: 40%; right: 40%;
+  width: 60px; height: 20px;
+  background: linear-gradient(to right, rgba(255,80,0,0.7), transparent);
+  border-radius: 10px;
+  opacity: 0; pointer-events: none;
+}
+
+/* ── CROSSHAIR ── */
+#crosshair {
+  position: fixed; pointer-events: none;
+  z-index: 20; transform: translate(-50%, -50%);
+}
+
+/* ── RELOAD UI ── */
+#reload-banner {
+  position: absolute;
+  top: 12px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: 2px;
+  padding: 5px 18px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  z-index: 6;
+}
+#reload-progress {
+  position: absolute;
+  bottom: 20px; left: 50%;
+  transform: translateX(-50%);
+  width: 160px; height: 3px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  z-index: 6;
+}
+#reload-fill { height: 100%; width: 0; background: var(--accent); border-radius: 2px; transition: width 0.05s linear; }
+
+/* ── RELOAD BUTTON ── */
+#btn-reload {
+  position: absolute;
+  bottom: 16px; right: 16px;
+  background: rgba(20,22,28,0.85);
+  border: 1.5px solid var(--border);
+  color: #aaa;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  z-index: 7;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+#btn-reload:active { transform: scale(0.95); }
+#btn-reload.active { border-color: var(--accent); color: var(--accent); }
+#btn-reload svg { width: 18px; height: 18px; fill: currentColor; }
+
+/* ══════════════════════════════════════
+   SIDEBAR MENU
+══════════════════════════════════════ */
+#sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--bg1);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── CAT TABS ── */
+#cat-tabs {
+  display: flex;
+  overflow-x: scroll;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  padding: 8px 6px 6px;
+  gap: 5px;
+  background: var(--bg0);
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: none;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+#cat-tabs::-webkit-scrollbar { display: none; }
+.cat-tab {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  background: var(--bg2);
+  color: #666;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.cat-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── GUN LIST ── */
+#gun-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg2) transparent;
+}
+
+.gun-card {
+  background: var(--bg2);
+  border: 1.5px solid transparent;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+.gun-card:hover { border-color: rgba(224,92,42,0.4); background: #1e2228; }
+.gun-card.active { border-color: var(--accent); background: rgba(224,92,42,0.08); }
+.gun-card.locked { opacity: 0.55; }
+.gun-card-sil {
+  width: 68px; height: 34px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.gun-card-sil svg { fill: #777; transition: fill 0.15s; width: 100%; height: 100%; }
+.gun-card.active .gun-card-sil svg { fill: var(--accent); }
+.gun-card.locked .gun-card-sil svg { fill: #333; }
+.gun-card-info { flex: 1; min-width: 0; }
+.gun-card-name { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gun-card.active .gun-card-name { color: #fff; }
+.gun-card-cal  { font-size: 8px; color: #555; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gun-lock-badge {
+  font-size: 9px;
+  position: absolute; top: 4px; right: 6px;
+}
+.unlock-ad   { color: #f5c842; }
+.unlock-coin { color: #888; }
+
+/* ── UNLOCK ROW ── */
+#unlock-row {
+  padding: 8px 6px;
+  display: flex;
+  gap: 5px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.btn-unlock {
+  flex: 1;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  padding: 7px 4px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.btn-unlock.ad   { border-color: rgba(245,200,66,0.4); color: #f5c842; }
+.btn-unlock.coin { border-color: rgba(255,255,255,0.15); }
+.btn-unlock:active { transform: scale(0.97); }
+
+/* ══════════════════════════════════════
+   STATS BAR
+══════════════════════════════════════ */
+#stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 14px;
+  background: var(--bg1);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  height: 32px;
+}
+.stat-item { display: flex; align-items: center; gap: 5px; }
+.stat-lbl  { font-size: 8px; color: #555; letter-spacing: 1px; }
+.stat-bar  { width: 60px; height: 3px; background: var(--bg2); border-radius: 2px; overflow: hidden; }
+.stat-fill { height: 100%; border-radius: 2px; }
+
+/* ══════════════════════════════════════
+   PARTICLES (unchanged from original)
+══════════════════════════════════════ */
+
+.smoke {
+  position: fixed; border-radius: 50%;
+  background: rgba(200,200,200,0.18);
+  pointer-events: none; z-index: 30;
+  animation: smokeAnim 0.7s ease-out forwards;
+}
+@keyframes smokeAnim {
+  0%  { transform: translate(0,0) scale(1); opacity: 0.7; }
+  100%{ transform: translate(var(--dx), var(--dy)) scale(2.5); opacity: 0; }
+}
+.impact {
+  position: absolute; width: 10px; height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #f5c842 40%, transparent 70%);
+  pointer-events: none; z-index: 30;
+  animation: impactAnim 0.35s ease-out forwards;
+}
+@keyframes impactAnim {
+  0%  { transform: scale(1); opacity: 1; }
+  100%{ transform: scale(3); opacity: 0; }
+}
+.pellet {
+  position: fixed; width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #f5c842;
+  pointer-events: none; z-index: 30;
+  animation: pelletAnim var(--dur, 0.4s) ease-out forwards;
+}
+@keyframes pelletAnim {
+  0%  { transform: translate(0,0); opacity: 1; }
+  100%{ transform: translate(var(--px), var(--py)); opacity: 0; }
+}
+.flame-particle {
+  position: fixed; border-radius: 50%;
+  pointer-events: none; z-index: 30;
+  animation: flamePAnim var(--fdur, 0.5s) ease-out forwards;
+}
+@keyframes flamePAnim {
+  0%  { transform: translate(0,0) scale(1); opacity: 1; }
+  100%{ transform: translate(var(--fx), var(--fy)) scale(0.2); opacity: 0; }
+}
+.tracer {
+  position: fixed; height: 2px;
+  background: linear-gradient(to right, rgba(255,255,200,0.9), transparent);
+  pointer-events: none; z-index: 30;
+  transform-origin: left center;
+  animation: tracerAnim 0.18s ease-out forwards;
+}
+@keyframes tracerAnim {
+  0%  { opacity: 1; }
+  100%{ opacity: 0; }
+}
+
+/* ══════════════════════════════════════
+   MUZZLE FLASH SVG
+══════════════════════════════════════ */
+#muzzle-flash svg { width: 80px; height: 80px; }
+</style>
+</head>
+<body>
+
+<!-- ROTATE MESSAGE -->
+<div id="rotate-msg">
+  <svg viewBox="0 0 24 24"><path d="M16.48 2.52c3.27 1.55 5.61 4.72 5.97 8.48h1.5C23.44 4.84 20.29 1.2 16.08.08L16.48 2.52zm-6.25-.77c-3.23.85-5.94 3.1-7.31 6.13l1.37.56c1.17-2.56 3.44-4.49 6.22-5.22L10.23 1.75zM1.55 13c.38 3.75 2.7 6.91 5.94 8.48l.4-2.44C5.15 17.71 3.05 15.6 2.5 13H1.55zm14.78 8.48c3.24-1.55 5.56-4.72 5.94-8.48h-1.5c-.5 2.6-2.6 4.71-4.84 5.8l.4 2.68zM12 5c-3.87 0-7 3.13-7 7s3.13 7 7 7 7-3.13 7-7-3.13-7-7-7zm0 12c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
+  <p>ROTA EL DISPOSITIVO</p>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div>
+      <div id="gun-name">GLOCK 17</div>
+      <div id="gun-cal">9mm Parabellum</div>
+    </div>
+    <div id="hud-coins">
+      <svg viewBox="0 0 20 20" width="14" height="14" style="fill:#f5c842;flex-shrink:0"><circle cx="10" cy="10" r="9"/><text x="10" y="14" text-anchor="middle" font-size="10" fill="#222" font-weight="bold" font-family="Arial">$</text></svg>
+      <span id="coin-display">0</span>
+      <button id="btn-buy-coins" onclick="showBuyCoins()">+</button>
+    </div>
+    <div class="hud-ammo">
+      <div id="ammo-bar-wrap"><div id="ammo-bar"></div></div>
+      <div class="ammo-nums">
+        <div id="ammo-cur">17</div>
+        <div id="ammo-max">/17</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- STAGE -->
+    <div id="stage">
+      <div id="scope"></div>
+      <div id="screen-flash"></div>
+      <div id="flame"></div>
+      <div id="heat"></div>
+
+      <div id="gun-wrap">
+        <div id="gun-svg-container"></div>
+        <div id="muzzle-flash">
+          <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,5 44,36 72,30 46,42 65,65 40,48 15,65 34,42 8,30 36,36" fill="#fff9c4" opacity="0.95"/>
+            <circle cx="40" cy="40" r="12" fill="#fff176" opacity="0.8"/>
+          </svg>
+        </div>
+        <div id="spin-ind">
+          <svg viewBox="0 0 28 28" fill="none" stroke="#f5c842" stroke-width="2.5">
+            <circle cx="14" cy="14" r="11"/>
+            <line x1="14" y1="3" x2="14" y2="8"/>
+            <line x1="14" y1="20" x2="14" y2="25"/>
+            <line x1="3" y1="14" x2="8" y2="14"/>
+            <line x1="20" y1="14" x2="25" y2="14"/>
+          </svg>
+        </div>
+      </div>
+
+      <div id="reload-banner">RECARGANDO...</div>
+      <div id="reload-progress"><div id="reload-fill"></div></div>
+
+      <!-- RELOAD BUTTON -->
+      <button id="btn-reload">
+        <svg viewBox="0 0 24 24"><path d="M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 16.03 20 14.07 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 8.74C4.46 9.97 4 11.43 4 13c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+        RECARGAR [R]
+      </button>
+
+      <!-- CROSSHAIR -->
+      <div id="crosshair">
+        <svg id="crosshair-svg" width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <line x1="22" y1="2"  x2="22" y2="13" stroke="#fff" stroke-width="1.5" opacity="0.85"/>
+          <line x1="22" y1="31" x2="22" y2="42" stroke="#fff" stroke-width="1.5" opacity="0.85"/>
+          <line x1="2"  y1="22" x2="13" y2="22" stroke="#fff" stroke-width="1.5" opacity="0.85"/>
+          <line x1="31" y1="22" x2="42" y2="22" stroke="#fff" stroke-width="1.5" opacity="0.85"/>
+          <circle cx="22" cy="22" r="1.5" fill="#fff" opacity="0.9"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- SIDEBAR MENU -->
+    <div id="sidebar">
+
+      <!-- CATEGORY TABS -->
+      <div id="cat-tabs">
+        <div class="cat-tab active" onclick="switchCategory('pistol')">PISTOLA</div>
+        <div class="cat-tab" onclick="switchCategory('assault')">ASALTO</div>
+        <div class="cat-tab" onclick="switchCategory('smg')">SMG</div>
+        <div class="cat-tab" onclick="switchCategory('shotgun')">ESCOPETA</div>
+        <div class="cat-tab" onclick="switchCategory('sniper')">FRANCO</div>
+        <div class="cat-tab" onclick="switchCategory('lmg')">LMG</div>
+        <div class="cat-tab" onclick="switchCategory('special')">ESPECIAL</div>
+      </div>
+
+      <!-- GUN LIST -->
+      <div id="gun-list"></div>
+
+      <!-- UNLOCK ROW (shown when locked gun selected) -->
+      <div id="unlock-row" style="display:none"></div>
+
+    </div>
+  </div>
+
+  <!-- STATS BAR -->
+  <div id="stats-bar">
+    <div class="stat-item">
+      <span class="stat-lbl">DAÑO</span>
+      <div class="stat-bar"><div class="stat-fill" id="s-dmg" style="background:#e05c2a"></div></div>
+    </div>
+    <div class="stat-item">
+      <span class="stat-lbl">RANGO</span>
+      <div class="stat-bar"><div class="stat-fill" id="s-rng" style="background:#00e5ff"></div></div>
+    </div>
+    <div class="stat-item">
+      <span class="stat-lbl">CADENCIA</span>
+      <div class="stat-bar"><div class="stat-fill" id="s-rpm" style="background:#8bc34a"></div></div>
+    </div>
+    <div style="flex:1"></div>
+    <div id="cat-badge" style="font-size:9px;letter-spacing:1.5px;font-weight:700;color:var(--accent)">PISTOLA</div>
+  </div>
+
+  <!-- AD OVERLAY — placeholder, conectar AdMob SDK aquí -->
+  <div id="ad-overlay">
+    <div id="ad-box">
+      <p style="color:#666;font-size:10px;letter-spacing:1px;">ANUNCIO · ADMOB</p>
+      <div style="background:#1a1d24;border-radius:6px;height:90px;display:flex;align-items:center;justify-content:center;margin:10px 0;color:#444;font-size:12px;">[ Espacio para banner/video AdMob ]</div>
+      <p>Mira el anuncio completo para desbloquear el arma o ganar monedas</p>
+      <div id="ad-timer">5</div>
+      <button id="ad-skip" onclick="finishAd()">CONTINUAR ✓</button>
+    </div>
+  </div>
+
+  <!-- BUY COINS MODAL — conectar Google Play Billing aquí -->
+  <div id="buy-overlay">
+    <div id="buy-box">
+      <h3>💰 MONEDAS</h3>
+      <div class="buy-option" onclick="watchAdForCoins()" style="border-color:rgba(245,200,66,0.4)">
+        <span class="buy-option-coins">📺 Ver anuncio</span>
+        <span class="buy-option-price" style="color:#f5c842">+5 a 10 monedas</span>
+      </div>
+      <div style="border-top:1px solid #222;margin:8px 0;"></div>
+      <div class="buy-option" onclick="purchaseCoins(500,'$0.99')"><span class="buy-option-coins">500 monedas</span><span class="buy-option-price">$0.99 USD</span></div>
+      <div class="buy-option" onclick="purchaseCoins(1200,'$1.99')"><span class="buy-option-coins">1,200 monedas</span><span class="buy-option-price">$1.99 USD</span></div>
+      <div class="buy-option" onclick="purchaseCoins(3000,'$3.99')"><span class="buy-option-coins">3,000 monedas</span><span class="buy-option-price">$3.99 USD</span></div>
+      <div class="buy-option" onclick="purchaseCoins(8000,'$7.99')"><span class="buy-option-coins">8,000 monedas</span><span class="buy-option-price">$7.99 USD</span></div>
+      <button id="buy-close" onclick="hideBuyCoins()">Cancelar</button>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════
+const CATEGORIES = [
+  {id:'pistol',  label:'🔫 PISTOLA',      color:'#e05c2a'},
+  {id:'assault', label:'⚡ ASALTO',        color:'#4caf50'},
+  {id:'smg',     label:'💨 SMG',           color:'#00bcd4'},
+  {id:'shotgun', label:'💥 ESCOPETA',      color:'#9c27b0'},
+  {id:'sniper',  label:'🎯 FRANCOTIRADOR', color:'#2196f3'},
+  {id:'lmg',     label:'🔥 LMG',           color:'#ff9800'},
+  {id:'special', label:'☢️ ESPECIAL',      color:'#f44336'},
+];
+
+// Siluetas SVG estilo CoD para cada arma
+const SILS = {
+  pistol:   `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M10 24 L18 20 L65 20 L72 16 L76 16 L76 22 L68 22 L68 26 L76 26 L76 28 L65 28 L18 28 L18 33 L14 33 L14 42 L10 42 L10 33 L8 33 L8 24 Z M65 20 L72 16 L72 11 L68 11 L68 16 L65 16Z M22 20 L22 16 L26 16 L26 20Z"/></svg>`,
+  pistol2:  `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M8 22 L16 18 L66 18 L74 13 L78 13 L78 19 L70 19 L70 24 L78 24 L78 30 L66 30 L60 34 L56 34 L56 40 L52 40 L52 34 L16 34 L16 38 L12 38 L12 34 L8 34 Z M66 18 L74 13 L74 8 L68 8 L68 14 L66 14Z"/></svg>`,
+  assault:  `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M2 23 L10 19 L14 19 L14 15 L17 13 L21 13 L21 19 L72 19 L78 15 L84 15 L87 19 L92 19 L92 22 L98 22 L98 25 L92 25 L92 28 L84 28 L78 28 L72 28 L21 28 L21 33 L17 35 L14 35 L14 30 L10 28 L6 28 L6 34 L2 34 Z M23 19 L23 13 L27 13 L27 19Z M31 19 L31 12 L35 12 L35 19Z M39 19 L39 13 L43 13 L43 19Z"/></svg>`,
+  assault2: `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M4 23 L14 19 L64 19 L64 15 L68 13 L82 13 L84 15 L90 15 L94 18 L94 22 L90 22 L90 28 L94 28 L94 32 L90 34 L82 34 L68 34 L64 32 L64 28 L14 28 L14 32 L8 34 L6 34 L4 32 Z"/></svg>`,
+  smg:      `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M6 22 L14 18 L56 18 L60 15 L66 15 L66 19 L62 19 L62 22 L66 22 L66 26 L62 26 L62 28 L56 28 L14 28 L14 33 L10 35 L8 35 L8 30 L6 30 Z M16 18 L16 13 L20 13 L20 18Z M24 18 L24 11 L28 11 L28 18Z M32 18 L32 13 L36 13 L36 18Z"/></svg>`,
+  smg2:     `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M4 22 L14 18 L58 18 L58 13 L62 11 L70 11 L72 13 L72 18 L78 18 L78 22 L72 22 L72 28 L70 30 L62 30 L58 28 L58 22 L14 22 L14 28 L8 32 L6 32 L4 28 Z"/></svg>`,
+  shotgun:  `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M2 22 L10 18 L14 18 L14 14 L18 12 L22 12 L22 18 L74 18 L80 15 L88 15 L92 17 L96 17 L96 22 L92 22 L96 22 L96 28 L92 30 L88 30 L80 28 L74 28 L22 28 L22 34 L18 36 L14 36 L14 32 L10 28 L6 28 L6 34 L2 34Z"/></svg>`,
+  sniper:   `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M2 23 L10 20 L14 20 L14 17 L17 16 L23 16 L23 20 L66 20 L66 17 L70 14 L74 14 L78 17 L90 17 L96 20 L96 25 L90 28 L78 28 L74 28 L70 25 L66 25 L66 24 L23 24 L23 30 L17 30 L14 29 L14 26 L10 26 L6 26 L6 32 L2 32Z M70 14 L70 9 L66 9 L66 14Z M78 14 L78 9 L74 9 L74 14Z"/></svg>`,
+  sniper2:  `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M2 23 L8 20 L12 20 L12 17 L16 14 L26 14 L26 20 L68 20 L68 16 L74 13 L84 13 L92 13 L96 16 L96 22 L96 28 L92 32 L84 32 L74 32 L68 28 L68 24 L26 24 L26 32 L16 34 L12 33 L12 26 L8 26 L6 28 L2 28Z"/></svg>`,
+  lmg:      `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M2 23 L10 19 L14 19 L14 14 L20 12 L26 12 L26 19 L70 19 L76 16 L84 16 L88 19 L90 23 L88 27 L84 30 L76 30 L70 27 L26 27 L26 33 L20 36 L14 34 L14 27 L10 27 L8 30 L2 30 Z M28 19 L28 12 L32 12 L32 19Z M36 19 L36 11 L40 11 L40 19Z M44 19 L44 12 L48 12 L48 19Z M52 19 L52 12 L56 12 L56 19Z"/></svg>`,
+  minigun:  `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M2 22 L10 18 L16 18 L16 14 L22 12 L28 12 L28 14 L32 14 L32 12 L36 12 L36 14 L40 14 L40 12 L44 12 L44 18 L76 18 L82 16 L90 16 L94 20 L94 24 L94 28 L90 30 L82 30 L76 28 L44 28 L44 34 L40 34 L40 32 L36 32 L36 34 L32 34 L32 32 L28 34 L22 34 L16 30 L10 28 L6 28 L6 34 L2 34Z"/></svg>`,
+  flamethrower: `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M2 22 L12 18 L20 18 L20 12 L26 10 L32 10 L32 18 L56 18 L60 16 L70 16 L70 18 L78 18 L84 20 L90 20 L94 23 L90 26 L84 26 L78 28 L70 28 L70 30 L60 30 L56 28 L32 28 L32 36 L26 38 L20 36 L20 28 L12 28 L6 28 L6 34 L2 34Z M62 16 L62 11 L66 11 L70 13 L70 16Z"/></svg>`,
+  rpg:      `<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><path d="M4 24 L12 20 L20 20 L20 17 L24 15 L30 15 L30 20 L80 20 L84 18 L90 18 L96 22 L98 25 L96 28 L90 28 L84 28 L80 26 L30 26 L30 32 L24 34 L20 32 L20 26 L12 26 L8 28 L4 28Z M82 18 L88 14 L92 14 L98 18Z"/></svg>`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// STATS DE ARMAS — formato: dmg | rng | rpm
+// Para editar: cambia los números de dmg, rng, rpm
+// ═══════════════════════════════════════════════════════════
+const GUNS = {
+  pistol: [
+    // id           nombre            calibre               dmg  rng  rpm  ammo  retroceso       mira   casq  perdg  cat       sil        lock
+    {id:'g17',      name:'GLOCK 17',      cal:'9mm',        dmg: 55, rng: 50, rpm: 60,  ammo:17, recoil:'light',  scope:false, shells:true, pellets:false, cat:'pistol', sil:'pistol',  locked:false},
+    {id:'deagle',   name:'DESERT EAGLE',  cal:'.50 AE',     dmg: 90, rng: 55, rpm: 25,  ammo: 7, recoil:'vheavy', scope:false, shells:true, pellets:false, cat:'pistol', sil:'pistol2', locked:false},
+    {id:'beretam9', name:'BERETTA M9',    cal:'9mm',        dmg: 50, rng: 50, rpm: 50,  ammo:15, recoil:'light',  scope:false, shells:true, pellets:false, cat:'pistol', sil:'pistol',  locked:true, unlock:'ad'},
+    {id:'fn57',     name:'FN FIVE-SEVEN', cal:'5.7×28mm',   dmg: 52, rng: 60, rpm: 65,  ammo:20, recoil:'vlight', scope:false, shells:true, pellets:false, cat:'pistol', sil:'pistol2', locked:true, unlock:'ad'},
+    {id:'sigp226',  name:'SIG SAUER P226',cal:'9mm',        dmg: 55, rng: 50, rpm: 50,  ammo:15, recoil:'light',  scope:false, shells:true, pellets:false, cat:'pistol', sil:'pistol',  locked:true, unlock:'coin', price:600},
+  ],
+  smg: [
+    // id           nombre            calibre               dmg  rng  rpm  ammo  retroceso       mira   casq  perdg  cat   sil     lock
+    {id:'mp5',      name:'MP5',           cal:'9mm',        dmg: 55, rng: 50, rpm: 48,  ammo:30, recoil:'light',  scope:false, shells:true, pellets:false, cat:'smg', sil:'smg',  locked:false},
+    {id:'ump45',    name:'UMP45',         cal:'.45 ACP',    dmg: 70, rng: 55, rpm: 40,  ammo:25, recoil:'medium', scope:false, shells:true, pellets:false, cat:'smg', sil:'smg2', locked:false},
+    {id:'p90',      name:'P90',           cal:'5.7×28mm',   dmg: 45, rng: 55, rpm: 80,  ammo:50, recoil:'vlight', scope:false, shells:true, pellets:false, cat:'smg', sil:'smg',  locked:false},
+    {id:'vector',   name:'VECTOR',        cal:'.45 ACP',    dmg: 50, rng: 40, rpm: 95,  ammo:19, recoil:'light',  scope:false, shells:true, pellets:false, cat:'smg', sil:'smg2', locked:true, unlock:'ad'},
+    {id:'mac10',    name:'MAC-10',        cal:'9mm',        dmg: 40, rng: 35, rpm: 85,  ammo:32, recoil:'medium', scope:false, shells:true, pellets:false, cat:'smg', sil:'smg',  locked:true, unlock:'ad'},
+    {id:'mp7',      name:'MP7',           cal:'4.6×30mm',   dmg: 52, rng: 55, rpm: 78,  ammo:40, recoil:'vlight', scope:false, shells:true, pellets:false, cat:'smg', sil:'smg2', locked:true, unlock:'ad'},
+    {id:'pp19',     name:'PP19 BIZON',    cal:'9mm',        dmg: 45, rng: 55, rpm: 60,  ammo:64, recoil:'light',  scope:false, shells:true, pellets:false, cat:'smg', sil:'smg',  locked:true, unlock:'coin', price:500},
+    {id:'scorpion', name:'SCORPION EVO',  cal:'9mm',        dmg: 55, rng: 55, rpm: 65,  ammo:30, recoil:'light',  scope:false, shells:true, pellets:false, cat:'smg', sil:'smg2', locked:true, unlock:'coin', price:600},
+    {id:'thompson', name:'THOMPSON',      cal:'.45 ACP',    dmg: 68, rng: 40, rpm: 50,  ammo:30, recoil:'medium', scope:false, shells:true, pellets:false, cat:'smg', sil:'smg',  locked:true, unlock:'coin', price:700},
+    {id:'uzi',      name:'UZI',           cal:'9mm',        dmg: 42, rng: 35, rpm: 88,  ammo:32, recoil:'medium', scope:false, shells:true, pellets:false, cat:'smg', sil:'smg2', locked:true, unlock:'coin', price:450},
+    {id:'augpara',  name:'AUG PARA',      cal:'9mm',        dmg: 55, rng: 55, rpm: 60,  ammo:32, recoil:'light',  scope:false, shells:true, pellets:false, cat:'smg', sil:'smg',  locked:true, unlock:'coin', price:800},
+    {id:'kriss',    name:'KRISS SMG',     cal:'.45 ACP',    dmg: 50, rng: 40, rpm: 92,  ammo:25, recoil:'vlight', scope:false, shells:true, pellets:false, cat:'smg', sil:'smg2', locked:true, unlock:'coin', price:900},
+  ],
+  assault: [
+    // id           nombre            calibre               dmg  rng  rpm  ammo  retroceso       mira   casq  perdg  cat        sil         lock
+    {id:'ak47',     name:'AK-47',         cal:'7.62×39mm',  dmg: 85, rng: 80, rpm: 45,  ammo:30, recoil:'heavy',  scope:false, shells:true, pellets:false, cat:'assault', sil:'assault',  locked:false},
+    {id:'m4a1',     name:'M4A1',          cal:'5.56×45mm',  dmg: 65, rng: 80, rpm: 60,  ammo:30, recoil:'medium', scope:false, shells:true, pellets:false, cat:'assault', sil:'assault2', locked:false},
+    {id:'scarl',    name:'SCAR-L',        cal:'5.56×45mm',  dmg: 75, rng: 80, rpm: 50,  ammo:30, recoil:'heavy',  scope:false, shells:true, pellets:false, cat:'assault', sil:'assault',  locked:true, unlock:'ad'},
+    {id:'famas',    name:'FAMAS',         cal:'5.56×45mm',  dmg: 60, rng: 65, rpm: 70,  ammo:25, recoil:'light',  scope:false, shells:true, pellets:false, cat:'assault', sil:'assault2', locked:true, unlock:'ad'},
+    {id:'aug',      name:'AUG A3',        cal:'5.56×45mm',  dmg: 65, rng: 80, rpm: 60,  ammo:30, recoil:'medium', scope:true,  shells:true, pellets:false, cat:'assault', sil:'assault',  locked:true, unlock:'ad'},
+    {id:'g36c',     name:'G36C',          cal:'5.56×45mm',  dmg: 62, rng: 70, rpm: 62,  ammo:30, recoil:'medium', scope:false, shells:true, pellets:false, cat:'assault', sil:'assault2', locked:true, unlock:'coin', price:800},
+    {id:'tar21',    name:'TAR-21',        cal:'5.56×45mm',  dmg: 72, rng: 65, rpm: 65,  ammo:30, recoil:'medium', scope:false, shells:true, pellets:false, cat:'assault', sil:'assault',  locked:true, unlock:'coin', price:900},
+    {id:'qbz95',    name:'QBZ-95',        cal:'5.8×42mm',   dmg: 63, rng: 70, rpm: 62,  ammo:30, recoil:'light',  scope:false, shells:true, pellets:false, cat:'assault', sil:'assault2', locked:true, unlock:'coin', price:850},
+    {id:'an94',     name:'AN-94',         cal:'5.45×39mm',  dmg: 78, rng: 80, rpm: 50,  ammo:30, recoil:'medium', scope:false, shells:true, pellets:false, cat:'assault', sil:'assault',  locked:true, unlock:'coin', price:1100},
+    {id:'hk416',    name:'HK416',         cal:'5.56×45mm',  dmg: 65, rng: 80, rpm: 62,  ammo:30, recoil:'medium', scope:false, shells:true, pellets:false, cat:'assault', sil:'assault2', locked:true, unlock:'coin', price:1000},
+  ],
+  sniper: [
+    // id           nombre            calibre               dmg   rng  rpm  ammo  retroceso       mira  casq  perdg  cat       sil        lock
+    {id:'awp',      name:'AWP',           cal:'.338 Lapua', dmg:100, rng:100, rpm: 15,  ammo: 5, recoil:'vheavy', scope:true, shells:true, pellets:false, cat:'sniper', sil:'sniper',  locked:false},
+    {id:'barrett',  name:'BARRETT M82',   cal:'.50 BMG',    dmg: 98, rng: 95, rpm: 25,  ammo:10, recoil:'vheavy', scope:true, shells:true, pellets:false, cat:'sniper', sil:'sniper2', locked:true, unlock:'ad'},
+    {id:'dragunov', name:'DRAGUNOV SVD',  cal:'7.62×54mm',  dmg: 80, rng: 85, rpm: 45,  ammo:10, recoil:'heavy',  scope:true, shells:true, pellets:false, cat:'sniper', sil:'sniper',  locked:true, unlock:'coin', price:1400},
+  ],
+  shotgun: [
+    // id           nombre            calibre               dmg  rng  rpm  ammo  retroceso       mira   casq  perdg  cat        sil        lock
+    {id:'m870',     name:'REMINGTON 870', cal:'12 Gauge',   dmg: 95, rng: 35, rpm: 30,  ammo: 6, recoil:'vheavy', scope:false, shells:true, pellets:true, cat:'shotgun', sil:'shotgun', locked:false},
+    {id:'spas12',   name:'SPAS-12',       cal:'12 Gauge',   dmg: 90, rng: 40, rpm: 45,  ammo: 8, recoil:'heavy',  scope:false, shells:true, pellets:true, cat:'shotgun', sil:'shotgun', locked:true, unlock:'ad'},
+    {id:'aa12',     name:'AA-12',         cal:'12 Gauge',   dmg: 75, rng: 30, rpm: 85,  ammo:20, recoil:'heavy',  scope:false, shells:true, pellets:true, cat:'shotgun', sil:'shotgun', locked:true, unlock:'coin', price:1500},
+    {id:'moss500',  name:'MOSSBERG 500',  cal:'12 Gauge',   dmg: 92, rng: 35, rpm: 30,  ammo: 6, recoil:'vheavy', scope:false, shells:true, pellets:true, cat:'shotgun', sil:'shotgun', locked:true, unlock:'coin', price:900},
+  ],
+  special: [
+    // id                nombre                calibre          dmg   rng  rpm   ammo  retroceso      mira   casq   perdg  cat        sil               lock
+    {id:'minigun',      name:'MINIGUN',        cal:'7.62mm NATO', dmg: 70, rng: 60, rpm: 90,  ammo:200, recoil:'none',   scope:false, shells:false, pellets:false, cat:'special', sil:'minigun',      locked:false, minigun:true},
+    {id:'flamethrower', name:'LANZALLAMAS',    cal:'Napalm',      dmg: 70, rng: 20, rpm: 85,  ammo: 80, recoil:'none',   scope:false, shells:false, pellets:false, cat:'special', sil:'flamethrower', locked:false, flame:true},
+    {id:'m79',          name:'LANZAGRANADAS',  cal:'40mm',        dmg: 95, rng: 60, rpm: 10,  ammo:  6, recoil:'vheavy', scope:false, shells:false, pellets:false, cat:'special', sil:'rpg',          locked:true, unlock:'ad'},
+    {id:'ballesta',     name:'BALLESTA',       cal:'Virote',      dmg: 75, rng: 60, rpm: 20,  ammo: 10, recoil:'medium', scope:true,  shells:false, pellets:false, cat:'special', sil:'sniper',       locked:true, unlock:'coin', price:1200},
+    {id:'rpg',          name:'RPG-7',          cal:'85mm',        dmg:100, rng: 85, rpm:  8,  ammo:  3, recoil:'vheavy', scope:false, shells:false, pellets:false, cat:'special', sil:'rpg',          locked:true, unlock:'coin', price:3000},
+  ],
+};
+
+// ── IMAGEN O SVG DEL ARMA ──
+// Si el arma tiene imagen en GitHub (/images/id.webp), la muestra
+// Si no, muestra el SVG por defecto
+function getGunImage(g) {
+  if (GUN_IMGS[g.id]) {
+    return `<img src="${GUN_IMGS[g.id]}"
+      style="width:100%;height:auto;max-height:380px;object-fit:contain;
+             filter:drop-shadow(0 8px 32px rgba(0,0,0,0.8))"
+      onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+      alt="${g.name}">
+    <div style="display:none;width:100%;justify-content:center">${getSVG(g)}</div>`;
+  }
+  return getSVG(g);
+}
+
+// ── SVG POR CATEGORÍA (pantalla principal) ──
+function getSVG(g) {
+  const cat = g.cat;
+  const sil = g.sil;
+  const svgs = {
+    pistol: `<svg viewBox="0 0 320 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#d0d0d0" d="M28 82 L58 68 L210 68 L230 55 L246 55 L246 72 L220 72 L220 82 L246 82 L246 88 L210 88 L58 88 L58 108 L44 108 L44 138 L30 138 L30 108 L22 108 L22 82 Z"/>
+      <path fill="#a0a0a0" d="M210 68 L230 55 L230 42 L218 42 L218 55 L210 55Z"/>
+      <path fill="#888" d="M68 68 L68 55 L78 55 L78 68Z M88 68 L88 52 L98 52 L98 68Z"/>
+      <rect fill="#777" x="155" y="66" width="12" height="4" rx="1"/>
+      <circle fill="#333" cx="40" cy="120" r="10"/>
+      <circle fill="#555" cx="40" cy="120" r="5"/>
+    </svg>`,
+
+    pistol2: `<svg viewBox="0 0 320 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#c8c8c8" d="M22 80 L50 65 L215 65 L240 48 L258 48 L258 66 L232 66 L232 76 L258 76 L258 98 L215 98 L195 108 L182 108 L182 128 L166 128 L166 108 L50 108 L50 120 L36 120 L36 108 L24 108 L24 80Z"/>
+      <path fill="#999" d="M215 65 L240 48 L240 34 L228 34 L228 48 L215 48Z"/>
+      <path fill="#777" d="M62 65 L62 52 L72 52 L72 65Z M82 65 L82 48 L92 48 L92 65Z"/>
+      <circle fill="#333" cx="44" cy="112" r="9"/>
+    </svg>`,
+
+    assault: `<svg viewBox="0 0 380 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#b8b8b8" d="M6 82 L30 70 L46 70 L46 56 L54 50 L68 50 L68 70 L240 70 L258 58 L278 58 L292 68 L306 68 L310 72 L330 72 L330 80 L330 86 L310 86 L306 90 L278 90 L258 88 L240 88 L68 88 L68 104 L54 110 L46 108 L46 90 L30 88 L18 90 L18 110 L6 110 Z"/>
+      <path fill="#999" d="M70 70 L70 50 L80 50 L80 70Z M90 70 L90 46 L100 46 L100 70Z M110 70 L110 50 L120 50 L120 70Z M130 70 L130 50 L140 50 L140 70Z"/>
+      <rect fill="#777" x="200" y="66" width="16" height="5" rx="1"/>
+      <path fill="#aaa" d="M292 68 L316 58 L320 46 L308 46 L308 58 L292 58Z"/>
+    </svg>`,
+
+    assault2: `<svg viewBox="0 0 380 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#b0b0b0" d="M12 82 L40 70 L200 70 L200 56 L212 48 L268 48 L275 54 L296 54 L310 60 L320 66 L320 80 L320 88 L310 94 L296 98 L275 98 L268 102 L212 102 L200 96 L200 88 L40 88 L40 104 L24 110 L18 108 L18 90 L12 90Z"/>
+      <rect fill="#888" x="240" y="44" width="10" height="6" rx="1"/>
+      <path fill="#999" d="M44 70 L44 60 L54 60 L54 70Z M64 70 L64 56 L74 56 L74 70Z"/>
+    </svg>`,
+
+    smg: `<svg viewBox="0 0 300 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#c0c0c0" d="M18 80 L44 66 L180 66 L195 56 L215 56 L215 66 L200 66 L200 76 L215 76 L215 84 L200 84 L200 90 L180 90 L44 90 L44 108 L30 112 L22 110 L22 90 L18 90Z"/>
+      <path fill="#999" d="M48 66 L48 54 L58 54 L58 66Z M68 66 L68 50 L78 50 L78 66Z M88 66 L88 54 L98 54 L98 66Z"/>
+      <rect fill="#777" x="145" y="63" width="12" height="4" rx="1"/>
+    </svg>`,
+
+    smg2: `<svg viewBox="0 0 300 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#b8b8b8" d="M12 80 L38 66 L185 66 L185 52 L195 44 L225 44 L230 48 L235 48 L240 54 L240 66 L250 66 L250 74 L240 74 L240 86 L230 90 L225 90 L195 90 L185 86 L185 80 L38 80 L38 96 L22 104 L18 100 L18 80Z"/>
+    </svg>`,
+
+    shotgun: `<svg viewBox="0 0 380 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#a8a8a8" d="M6 80 L30 66 L46 66 L46 50 L56 44 L70 44 L70 66 L240 66 L256 58 L278 58 L290 62 L320 62 L330 66 L330 72 L320 72 L320 78 L330 78 L330 88 L320 88 L290 90 L278 90 L256 88 L240 88 L70 88 L70 108 L56 114 L46 110 L46 90 L30 88 L18 90 L18 112 L6 112Z"/>
+      <path fill="#888" d="M290 62 L320 52 L324 42 L312 42 L312 52 L290 52Z"/>
+    </svg>`,
+
+    sniper: `<svg viewBox="0 0 420 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#a0a0a0" d="M6 82 L32 72 L46 72 L46 64 L52 60 L72 60 L72 72 L210 72 L210 64 L224 52 L238 52 L248 58 L290 58 L320 62 L330 66 L330 80 L330 86 L320 88 L290 90 L248 90 L238 88 L224 80 L210 80 L210 78 L72 78 L72 90 L52 92 L46 90 L46 80 L32 80 L20 82 L20 96 L6 96Z"/>
+      <path fill="#777" d="M224 52 L224 38 L210 38 L210 52Z M238 52 L238 38 L224 38 L224 52Z"/>
+      <rect fill="#555" x="218" y="34" width="26" height="10" rx="2"/>
+      <path fill="#888" d="M52 72 L52 58 L62 58 L62 72Z M64 72 L64 55 L74 55 L74 72Z"/>
+    </svg>`,
+
+    sniper2: `<svg viewBox="0 0 420 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#999" d="M6 82 L24 74 L38 74 L38 66 L50 56 L82 56 L82 74 L220 74 L220 66 L234 52 L256 50 L298 50 L310 52 L340 52 L350 58 L360 66 L360 80 L350 88 L340 94 L298 94 L256 94 L234 90 L220 84 L220 80 L82 80 L82 96 L50 98 L38 94 L38 80 L24 80 L18 84 L6 84Z"/>
+      <path fill="#777" d="M234 52 L234 38 L250 36 L256 50Z"/>
+      <rect fill="#555" x="230" y="32" width="30" height="8" rx="2"/>
+    </svg>`,
+
+    lmg: `<svg viewBox="0 0 380 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#a8a8a8" d="M6 82 L30 70 L46 70 L46 56 L58 48 L80 48 L80 70 L230 70 L246 60 L268 60 L280 66 L290 72 L290 86 L280 92 L268 96 L246 96 L230 90 L80 90 L80 106 L58 112 L46 108 L46 88 L30 86 L18 90 L18 112 L6 112Z"/>
+      <path fill="#888" d="M84 70 L84 48 L94 48 L94 70Z M100 70 L100 46 L110 46 L110 70Z M116 70 L116 48 L126 48 L126 70Z M132 70 L132 46 L142 46 L142 70Z M148 70 L148 48 L158 48 L158 70Z"/>
+      <circle fill="#555" cx="270" cy="80" r="20"/>
+      <circle fill="#333" cx="270" cy="80" r="14"/>
+      <circle fill="#222" cx="270" cy="80" r="8"/>
+    </svg>`,
+
+    minigun: `<svg viewBox="0 0 380 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#b0b0b0" d="M6 80 L30 70 L50 70 L50 56 L60 50 L72 50 L80 50 L80 56 L86 50 L98 50 L98 56 L104 50 L116 50 L116 70 L250 70 L268 62 L290 62 L308 68 L318 76 L318 84 L308 90 L290 96 L268 96 L250 88 L116 88 L116 106 L104 108 L98 108 L98 102 L86 108 L80 108 L80 102 L72 108 L60 106 L50 100 L50 88 L30 86 L18 90 L18 110 L6 110Z"/>
+      <line x1="308" y1="68" x2="360" y2="58" stroke="#888" stroke-width="5"/>
+      <line x1="308" y1="76" x2="365" y2="70" stroke="#888" stroke-width="5"/>
+      <line x1="308" y1="84" x2="365" y2="86" stroke="#888" stroke-width="5"/>
+      <line x1="308" y1="90" x2="360" y2="98" stroke="#888" stroke-width="5"/>
+    </svg>`,
+
+    flamethrower: `<svg viewBox="0 0 380 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#a0a0a0" d="M6 82 L30 72 L60 72 L60 56 L72 48 L96 48 L96 72 L182 72 L195 66 L228 66 L228 72 L258 72 L272 68 L300 68 L310 74 L310 78 L318 78 L318 80 L310 80 L316 84 L300 90 L272 88 L258 84 L228 84 L228 88 L195 88 L182 84 L96 84 L96 100 L72 108 L60 104 L60 84 L30 82 L18 86 L18 108 L6 108Z"/>
+      <path fill="#888" d="M198 66 L204 54 L214 50 L222 54 L220 66Z"/>
+    </svg>`,
+
+    rpg: `<svg viewBox="0 0 380 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <path fill="#9a9a9a" d="M6 82 L32 72 L62 72 L62 62 L72 56 L90 56 L90 72 L280 72 L290 66 L308 66 L320 62 L340 60 L356 64 L370 72 L374 80 L370 88 L356 96 L340 98 L320 94 L308 90 L290 90 L280 86 L90 86 L90 102 L72 108 L62 104 L62 86 L32 84 L18 88 L18 110 L6 110Z"/>
+      <path fill="#777" d="M340 60 L356 52 L370 52 L378 60 L378 80 L378 100 L370 108 L356 104 L340 98Z"/>
+      <path fill="#555" d="M370 64 L380 72 L380 88 L370 90Z"/>
+    </svg>`,
+  };
+  return svgs[sil] || svgs[g.cat.replace('assault','assault').replace('pistol','pistol')] || svgs.pistol;
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let currentGun = null;
+let ammo = 0;
+let isReloading = false;
+let reloadTimer = null;
+let reloadProgressInterval = null;
+let minigunSpinning = false;
+let minigunInterval = null;
+let audioCtx = null;
+let coins = 0;
+let shotsFired = 0;
+let adCallback = null; // función a llamar al terminar el anuncio
+
+// ── COIN SYSTEM ──
+const COIN_RATES = { pistol:0.04, assault:0.02, smg:0.015, shotgun:0.08, sniper:0.15, lmg:0.01, special:0.05 };
+function earnCoin(cat) {
+  shotsFired++;
+  const rate = COIN_RATES[cat] || 0.03;
+  if (Math.random() < rate) {
+    const earned = cat==='sniper' ? (Math.random()<0.3?5:2) : cat==='shotgun' ? 2 : 1;
+    coins += earned;
+    updateCoinDisplay();
+    showCoinPop('+' + earned);
+  }
+}
+function updateCoinDisplay() {
+  document.getElementById('coin-display').textContent = coins.toLocaleString();
+}
+function showCoinPop(text) {
+  const el = document.createElement('div');
+  el.className = 'coin-pop';
+  el.textContent = text;
+  const hud = document.getElementById('hud-coins');
+  const r = hud.getBoundingClientRect();
+  el.style.left = (r.left + 10) + 'px';
+  el.style.top  = (r.bottom + 4) + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1300);
+}
+function showBuyCoins() {
+  // TODO: conectar Google Play Billing aquí
+  document.getElementById('buy-overlay').classList.add('show');
+}
+function hideBuyCoins() {
+  document.getElementById('buy-overlay').classList.remove('show');
+}
+function watchAdForCoins() {
+  hideBuyCoins();
+  showAdOverlay(() => {
+    const earned = Math.floor(Math.random() * 6) + 5; // 5–10 monedas
+    coins += earned;
+    updateCoinDisplay();
+    showCoinPop('+' + earned);
+  });
+}
+function purchaseCoins(amount, price) {
+  // TODO: lanzar flujo real de Google Play Billing
+  alert('💳 Google Play Billing\nProducto: ' + amount + ' monedas · ' + price + '\n\nConecta BillingClient aquí');
+  // Simulación para pruebas:
+  // coins += amount; updateCoinDisplay(); hideBuyCoins();
+}
+
+// ── AD SYSTEM (placeholder AdMob) ──
+let adTimerInterval = null;
+function showAdOverlay(callback) {
+  adCallback = callback;
+  const overlay = document.getElementById('ad-overlay');
+  overlay.classList.add('show');
+  let t = 5;
+  document.getElementById('ad-timer').textContent = t;
+  document.getElementById('ad-skip').style.display = 'none';
+  adTimerInterval = setInterval(() => {
+    t--;
+    document.getElementById('ad-timer').textContent = t;
+    if (t <= 0) {
+      clearInterval(adTimerInterval);
+      document.getElementById('ad-skip').style.display = 'block';
+    }
+  }, 1000);
+  // TODO: reemplazar toda esta función con RewardedAd.load() + show() de AdMob SDK
+  // El callback se llama cuando el usuario gana la recompensa
+}
+function finishAd() {
+  clearInterval(adTimerInterval);
+  document.getElementById('ad-overlay').classList.remove('show');
+  if (adCallback) { adCallback(); adCallback = null; }
+}
+
+// ── INTERSTITIAL AD TIMER (cada 3 min, placeholder) ──
+// TODO: conectar AdMob InterstitialAd.load() aquí
+setInterval(() => {
+  // showAdOverlay(() => {}); // descomentar cuando tengas AdMob
+}, 3 * 60 * 1000);
+
+// ELEMENTS
+const gunWrap         = document.getElementById('gun-wrap');
+const gunSVGContainer = document.getElementById('gun-svg-container');
+const scope           = document.getElementById('scope');
+const muzzleFlash     = document.getElementById('muzzle-flash');
+const screenFlash     = document.getElementById('screen-flash');
+const flame           = document.getElementById('flame');
+const heat            = document.getElementById('heat');
+const spinInd         = document.getElementById('spin-ind');
+const crosshairEl     = document.getElementById('crosshair');
+const reloadBanner    = document.getElementById('reload-banner');
+const reloadProgress  = document.getElementById('reload-progress');
+const reloadFill      = document.getElementById('reload-fill');
+const btnReload       = document.getElementById('btn-reload');
+const gunNameEl       = document.getElementById('gun-name');
+const gunCalEl        = document.getElementById('gun-cal');
+const ammoCur         = document.getElementById('ammo-cur');
+const ammoMax         = document.getElementById('ammo-max');
+const ammoBar         = document.getElementById('ammo-bar');
+const sDmg            = document.getElementById('s-dmg');
+const sRng            = document.getElementById('s-rng');
+const sRpm            = document.getElementById('s-rpm');
+const catBadge        = document.getElementById('cat-badge');
+
+// ═══════════════════════════════════════════════════════════
+// AUDIO — GitHub Pages: https://zwokerx.github.io/gungame
+// ═══════════════════════════════════════════════════════════
+// Para agregar sonido a un arma:
+//   1. Sube el .mp3 a /sounds/ en tu repo con el mismo nombre que el id del arma
+//   2. Agrega la línea aquí: id: BASE_URL + '/sounds/id.mp3'
+// Para agregar recarga: id_reload: BASE_URL + '/sounds/id_reload.mp3'
+// ─────────────────────────────────────────────────────────
+const BASE_URL = 'https://zwokerx.github.io/gungame';
+
+const GUN_SOUNDS = {
+  // ── PISTOLAS ──
+  g17:            BASE_URL + '/sounds/g17.mp3',
+  g17_reload:     BASE_URL + '/sounds/g17_reload.mp3',
+  deagle:         BASE_URL + '/sounds/deagle.mp3',
+  deagle_reload:  BASE_URL + '/sounds/deagle_reload.mp3',
+  beretam9:       BASE_URL + '/sounds/beretam9.mp3',
+  beretam9_reload:BASE_URL + '/sounds/beretam9_reload.mp3',
+  fn57:           BASE_URL + '/sounds/fn57.mp3',
+  fn57_reload:    BASE_URL + '/sounds/fn57_reload.mp3',
+  sigp226:        BASE_URL + '/sounds/sigp226.mp3',
+  sigp226_reload: BASE_URL + '/sounds/sigp226_reload.mp3',
+
+  // ── SMG ──
+  mp5:            BASE_URL + '/sounds/mp5.mp3',
+  mp5_reload:     BASE_URL + '/sounds/mp5_reload.mp3',
+  ump45:          BASE_URL + '/sounds/ump45.mp3',
+  ump45_reload:   BASE_URL + '/sounds/ump45_reload.mp3',
+  p90:            BASE_URL + '/sounds/p90.mp3',
+  p90_reload:     BASE_URL + '/sounds/p90_reload.mp3',
+  vector:         BASE_URL + '/sounds/vector.mp3',
+  vector_reload:  BASE_URL + '/sounds/vector_reload.mp3',
+  mac10:          BASE_URL + '/sounds/mac10.mp3',
+  mac10_reload:   BASE_URL + '/sounds/mac10_reload.mp3',
+  mp7:            BASE_URL + '/sounds/mp7.mp3',
+  mp7_reload:     BASE_URL + '/sounds/mp7_reload.mp3',
+  pp19:           BASE_URL + '/sounds/pp19.mp3',
+  pp19_reload:    BASE_URL + '/sounds/pp19_reload.mp3',
+  scorpion:       BASE_URL + '/sounds/scorpion.mp3',
+  scorpion_reload:BASE_URL + '/sounds/scorpion_reload.mp3',
+  thompson:       BASE_URL + '/sounds/thompson.mp3',
+  thompson_reload:BASE_URL + '/sounds/thompson_reload.mp3',
+  uzi:            BASE_URL + '/sounds/uzi.mp3',
+  uzi_reload:     BASE_URL + '/sounds/uzi_reload.mp3',
+  augpara:        BASE_URL + '/sounds/augpara.mp3',
+  augpara_reload: BASE_URL + '/sounds/augpara_reload.mp3',
+  kriss:          BASE_URL + '/sounds/kriss.mp3',
+  kriss_reload:   BASE_URL + '/sounds/kriss_reload.mp3',
+
+  // ── ASALTO ──
+  ak47:           BASE_URL + '/sounds/ak47.mp3',
+  ak47_reload:    BASE_URL + '/sounds/ak47_reload.mp3',
+  m4a1:           BASE_URL + '/sounds/m4a1.mp3',
+  m4a1_reload:    BASE_URL + '/sounds/m4a1_reload.mp3',
+  scarl:          BASE_URL + '/sounds/scarl.mp3',
+  scarl_reload:   BASE_URL + '/sounds/scarl_reload.mp3',
+  famas:          BASE_URL + '/sounds/famas.mp3',
+  famas_reload:   BASE_URL + '/sounds/famas_reload.mp3',
+  aug:            BASE_URL + '/sounds/aug.mp3',
+  aug_reload:     BASE_URL + '/sounds/aug_reload.mp3',
+  g36c:           BASE_URL + '/sounds/g36c.mp3',
+  g36c_reload:    BASE_URL + '/sounds/g36c_reload.mp3',
+  tar21:          BASE_URL + '/sounds/tar21.mp3',
+  tar21_reload:   BASE_URL + '/sounds/tar21_reload.mp3',
+  qbz95:          BASE_URL + '/sounds/qbz95.mp3',
+  qbz95_reload:   BASE_URL + '/sounds/qbz95_reload.mp3',
+  an94:           BASE_URL + '/sounds/an94.mp3',
+  an94_reload:    BASE_URL + '/sounds/an94_reload.mp3',
+  hk416:          BASE_URL + '/sounds/hk416.mp3',
+  hk416_reload:   BASE_URL + '/sounds/hk416_reload.mp3',
+
+  // ── FRANCOTIRADOR ──
+  awp:            BASE_URL + '/sounds/awp.mp3',
+  awp_reload:     BASE_URL + '/sounds/awp_reload.mp3',
+  barrett:        BASE_URL + '/sounds/barrett.mp3',
+  barrett_reload: BASE_URL + '/sounds/barrett_reload.mp3',
+  dragunov:       BASE_URL + '/sounds/dragunov.mp3',
+  dragunov_reload:BASE_URL + '/sounds/dragunov_reload.mp3',
+
+  // ── ESCOPETA ──
+  m870:           BASE_URL + '/sounds/m870.mp3',
+  m870_reload:    BASE_URL + '/sounds/m870_reload.mp3',
+  spas12:         BASE_URL + '/sounds/spas12.mp3',
+  spas12_reload:  BASE_URL + '/sounds/spas12_reload.mp3',
+  aa12:           BASE_URL + '/sounds/aa12.mp3',
+  aa12_reload:    BASE_URL + '/sounds/aa12_reload.mp3',
+  moss500:        BASE_URL + '/sounds/moss500.mp3',
+  moss500_reload: BASE_URL + '/sounds/moss500_reload.mp3',
+
+  // ── ESPECIAL ──
+  minigun:        BASE_URL + '/sounds/minigun.mp3',
+  flamethrower:   BASE_URL + '/sounds/flamethrower.mp3',
+  m79:            BASE_URL + '/sounds/m79.mp3',
+  m79_reload:     BASE_URL + '/sounds/m79_reload.mp3',
+  ballesta:       BASE_URL + '/sounds/ballesta.mp3',
+  ballesta_reload:BASE_URL + '/sounds/ballesta_reload.mp3',
+  rpg:            BASE_URL + '/sounds/rpg.mp3',
+  rpg_reload:     BASE_URL + '/sounds/rpg_reload.mp3',
+};
+
+// ── IMÁGENES desde GitHub Pages ──
+// Para agregar imagen: sube el archivo a /images/ con el id del arma
+// Formatos soportados: .webp .png .jpg
+const GUN_IMGS = {
+  // ── PISTOLAS ──
+  g17:        BASE_URL + '/images/g17.webp',
+  deagle:     BASE_URL + '/images/deagle.webp',
+  beretam9:   BASE_URL + '/images/beretam9.webp',
+  fn57:       BASE_URL + '/images/fn57.webp',
+  sigp226:    BASE_URL + '/images/sigp226.webp',
+
+  // ── SMG ──
+  mp5:        BASE_URL + '/images/mp5.webp',
+  ump45:      BASE_URL + '/images/ump45.webp',
+  p90:        BASE_URL + '/images/p90.webp',
+  vector:     BASE_URL + '/images/vector.webp',
+  mac10:      BASE_URL + '/images/mac10.webp',
+  mp7:        BASE_URL + '/images/mp7.webp',
+  pp19:       BASE_URL + '/images/pp19.webp',
+  scorpion:   BASE_URL + '/images/scorpion.webp',
+  thompson:   BASE_URL + '/images/thompson.webp',
+  uzi:        BASE_URL + '/images/uzi.webp',
+  augpara:    BASE_URL + '/images/augpara.webp',
+  kriss:      BASE_URL + '/images/kriss.webp',
+
+  // ── ASALTO ──
+  ak47:       BASE_URL + '/images/ak47.webp',
+  m4a1:       BASE_URL + '/images/m4a1.webp',
+  scarl:      BASE_URL + '/images/scarl.webp',
+  famas:      BASE_URL + '/images/famas.webp',
+  aug:        BASE_URL + '/images/aug.webp',
+  g36c:       BASE_URL + '/images/g36c.webp',
+  tar21:      BASE_URL + '/images/tar21.webp',
+  qbz95:      BASE_URL + '/images/qbz95.webp',
+  an94:       BASE_URL + '/images/an94.webp',
+  hk416:      BASE_URL + '/images/hk416.webp',
+
+  // ── FRANCOTIRADOR ──
+  awp:        BASE_URL + '/images/awp.webp',
+  barrett:    BASE_URL + '/images/barrett.webp',
+  dragunov:   BASE_URL + '/images/dragunov.webp',
+
+  // ── ESCOPETA ──
+  m870:       BASE_URL + '/images/m870.webp',
+  spas12:     BASE_URL + '/images/spas12.webp',
+  aa12:       BASE_URL + '/images/aa12.webp',
+  moss500:    BASE_URL + '/images/moss500.webp',
+
+  // ── ESPECIAL ──
+  minigun:      BASE_URL + '/images/minigun.webp',
+  flamethrower: BASE_URL + '/images/flamethrower.webp',
+  m79:          BASE_URL + '/images/m79.webp',
+  ballesta:     BASE_URL + '/images/ballesta.webp',
+  rpg:          BASE_URL + '/images/rpg.webp',
+};
+
+const GUN_BUFFERS = {};
+let audioUnlocked = false;
+
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  return audioCtx;
+}
+
+async function decodeSound(key) {
+  if (!GUN_SOUNDS[key] || GUN_BUFFERS[key]) return;
+  try {
+    const ctx = getAudio();
+    const res = await fetch(GUN_SOUNDS[key]);
+    if (!res.ok) return;
+    const arr = await res.arrayBuffer();
+    GUN_BUFFERS[key] = await ctx.decodeAudioData(arr);
+  } catch(e) {}
+}
+
+function playBuffer(key, vol) {
+  if (!GUN_BUFFERS[key]) return false;
+  try {
+    const ctx = getAudio();
+    if (ctx.state === 'suspended') ctx.resume();
+    const src = ctx.createBufferSource();
+    src.buffer = GUN_BUFFERS[key];
+    const gain = ctx.createGain();
+    gain.gain.value = vol;
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(0);
+    return true;
+  } catch(e) { return false; }
+}
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  const ctx = getAudio();
+  const sil = ctx.createBuffer(1, 1, 22050);
+  const src = ctx.createBufferSource();
+  src.buffer = sil; src.connect(ctx.destination); src.start(0);
+  // Pre-cargar solo los sonidos que existen (g17 y p90 por ahora)
+  for (const key in GUN_SOUNDS) decodeSound(key);
+}
+
+function playTone(freq, dur, type='square', vol=0.3, decay=0.08) {
+  const ctx = getAudio();
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.connect(g); g.connect(ctx.destination);
+  o.type = type; o.frequency.setValueAtTime(freq, ctx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(freq*0.3, ctx.currentTime+dur);
+  g.gain.setValueAtTime(vol, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+decay);
+  o.start(); o.stop(ctx.currentTime+dur);
+}
+
+function playShot(g) {
+  if (playBuffer(g.id, 0.85)) return;
+  decodeSound(g.id);
+  const map = {
+    pistol:{f:180,d:0.18,t:'sawtooth',v:0.5},
+    assault:{f:220,d:0.14,t:'sawtooth',v:0.6},
+    smg:{f:160,d:0.1,t:'sawtooth',v:0.4},
+    shotgun:{f:100,d:0.28,t:'sawtooth',v:0.8},
+    sniper:{f:280,d:0.3,t:'sawtooth',v:0.9},
+    lmg:{f:200,d:0.12,t:'sawtooth',v:0.65},
+    special:{f:140,d:0.35,t:'sawtooth',v:0.7},
+  };
+  const p = map[g.cat]||map.pistol;
+  playTone(p.f,p.d,p.t,p.v);
+}
+function playDryFire() { playTone(800,0.05,'square',0.2,0.05); }
+function playReloadTone() { playTone(400,0.12,'triangle',0.3,0.1); setTimeout(()=>playTone(600,0.1,'triangle',0.25,0.08),200); }
+function playReloadSound(gunId) {
+  if (playBuffer(gunId + '_reload', 0.9)) return;
+  playReloadTone();
+}
+function playMinigun() { playTone(250+Math.random()*50,0.05,'sawtooth',0.3,0.04); }
+function playFlame()   { playTone(120,0.15,'sawtooth',0.4,0.12); }
+
+// ═══════════════════════════════════════════════════════════
+// CATEGORY & GUN SWITCHING
+// ═══════════════════════════════════════════════════════════
+function switchCategory(catId) {
+  // Si el arma actual fue desbloqueada temporalmente, re-bloquearla al cambiar de categoría
+  if (currentGun && currentGun._tempUnlocked && !permanentUnlocks.has(currentGun.id)) {
+    currentGun.locked = true;
+    currentGun._tempUnlocked = false;
+  }
+  document.querySelectorAll('.cat-tab').forEach(t => {
+    t.classList.toggle('active', t.textContent.toLowerCase().replace('franco','sniper').replace('escopeta','shotgun').replace('asalto','assault').replace('pistola','pistol').replace('especial','special') === catId ||
+    t.onclick.toString().includes("'"+catId+"'"));
+  });
+  renderGunList(catId);
+  const guns = GUNS[catId];
+  if (guns && guns.length) switchGun(guns[0]);
+}
+
+function renderGunList(catId) {
+  const list = document.getElementById('gun-list');
+  list.innerHTML = '';
+  const guns = GUNS[catId] || [];
+  guns.forEach((g,i) => {
+    const card = document.createElement('div');
+    card.className = 'gun-card' + (g.locked?' locked':'') + (i===0?' active':'');
+    card.dataset.id = g.id;
+    card.onclick = () => {
+      if (g.locked) { showUnlockUI(g); return; }
+      document.querySelectorAll('.gun-card').forEach(c=>c.classList.remove('active'));
+      card.classList.add('active');
+      switchGun(g);
+    };
+    const badge = g.locked
+      ? `<span class="gun-lock-badge ${g.unlock==='ad'?'unlock-ad':'unlock-coin'}">${g.unlock==='ad'?'📺':'🔒'}</span>`
+      : '';
+    card.innerHTML = `
+      ${badge}
+      <div class="gun-card-sil">${SILS[g.sil]||SILS.pistol}</div>
+      <div class="gun-card-info">
+        <div class="gun-card-name">${g.name}</div>
+        <div class="gun-card-cal">${g.cal}</div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+  document.getElementById('unlock-row').style.display = 'none';
+}
+
+function showUnlockUI(g) {
+  document.querySelectorAll('.gun-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.id === g.id);
+  });
+  const row = document.getElementById('unlock-row');
+  row.style.display = 'flex';
+  if (g.unlock === 'ad') {
+    row.innerHTML = `
+      <button class="btn-unlock ad" onclick="watchAd('${g.id}')">
+        <span>📺</span>VER ANUNCIO<br><span style="font-size:8px;opacity:0.7">(temporal)</span>
+      </button>`;
+  } else {
+    row.innerHTML = `
+      <button class="btn-unlock ad" onclick="watchAd('${g.id}')">
+        <span>📺</span>VER ANUNCIO<br><span style="font-size:8px;opacity:0.7">(temporal)</span>
+      </button>
+      <button class="btn-unlock coin" onclick="buyCoin(${g.price},'${g.id}')">
+        <span>💰</span>${g.price} monedas<br><span style="font-size:8px;opacity:0.7">(permanente)</span>
+      </button>`;
+  }
+}
+
+// IDs de armas desbloqueadas permanentemente con monedas
+const permanentUnlocks = new Set();
+
+function watchAd(gunId) {
+  showAdOverlay(() => {
+    // Desbloqueo TEMPORAL — solo mientras no cambie de arma
+    for (const cat in GUNS) {
+      const g = GUNS[cat].find(g => g.id === gunId);
+      if (g) {
+        g._tempUnlocked = true; // marcar como temporal
+        g.locked = false;
+        renderGunList(cat);
+        switchGun(g);
+        break;
+      }
+    }
+  });
+}
+
+function buyCoin(price, gunId) {
+  if (coins < price) {
+    alert('No tienes suficientes monedas.\nNecesitas ' + price + ' monedas.');
+    return;
+  }
+  coins -= price;
+  updateCoinDisplay();
+  permanentUnlocks.add(gunId);
+  for (const cat in GUNS) {
+    const g = GUNS[cat].find(g => g.id === gunId);
+    if (g) {
+      g.locked = false;
+      g._tempUnlocked = false;
+      renderGunList(cat);
+      switchGun(g);
+      break;
+    }
+  }
+}
+function buyCoin(price) {
+  // Aquí va Google Play Billing
+  alert('💰 [Google Play Billing]\nPrecio: ' + price + ' monedas\n\nIntegra: BillingClient de Google Play Billing Library');
+}
+
+function switchGun(g) {
+  if (minigunSpinning) stopMinigun();
+
+  // Si el arma anterior fue desbloqueada temporalmente, volver a bloquearla
+  if (currentGun && currentGun !== g && currentGun._tempUnlocked && !permanentUnlocks.has(currentGun.id)) {
+    currentGun.locked = true;
+    currentGun._tempUnlocked = false;
+    // Refrescar la lista si seguimos en la misma categoría
+    if (currentGun.cat === g.cat) renderGunList(g.cat);
+  }
+
+  currentGun = g;
+  ammo = g.ammo;
+  updateHUD();
+  stopReload();
+
+  gunSVGContainer.innerHTML = getGunImage(g);
+  gunWrap.className = 'cat-' + g.cat;
+
+  scope.style.display = g.scope ? 'block' : 'none';
+  updateCrosshair(g);
+
+  const cat = CATEGORIES.find(c => c.id === g.cat);
+  sDmg.style.width = g.dmg + '%';
+  sRng.style.width = g.rng + '%';
+  sRpm.style.width = Math.min(g.rpm/2, 100) + '%';
+  catBadge.textContent = cat.label.replace(/^\S+\s/, '').toUpperCase();
+  catBadge.style.color = cat.color;
+
+  document.documentElement.style.setProperty('--accent', cat.color);
+  ammoBar.style.background = cat.color;
+}
+
+function updateCrosshair(g) {
+  const svg = document.getElementById('crosshair-svg');
+  if (!svg) return;
+  const spread = {shotgun:16,smg:8,lmg:10}[g.cat] || 9;
+  const lines = svg.querySelectorAll('line');
+  const r = spread;
+  if (lines[0]) { lines[0].setAttribute('y1','2');  lines[0].setAttribute('y2',22-r); }
+  if (lines[1]) { lines[1].setAttribute('y1',22+r); lines[1].setAttribute('y2','42'); }
+  if (lines[2]) { lines[2].setAttribute('x1','2');  lines[2].setAttribute('x2',22-r); }
+  if (lines[3]) { lines[3].setAttribute('x1',22+r); lines[3].setAttribute('x2','42'); }
+}
+
+function updateHUD() {
+  const g = currentGun;
+  gunNameEl.textContent = g.name;
+  gunCalEl.textContent  = g.cal;
+  ammoCur.textContent   = ammo;
+  ammoMax.textContent   = '/' + g.ammo;
+  const ratio = ammo / g.ammo;
+  ammoBar.style.width   = (ratio * 100) + '%';
+  const cat = CATEGORIES.find(c => c.id === g.cat);
+  ammoBar.style.background = ratio < 0.2 ? '#ff3333' : ratio < 0.4 ? '#ff8800' : cat.color;
+  ammoCur.style.color   = ratio < 0.2 ? '#ff3333' : ratio < 0.4 ? '#ff8800' : '#fff';
+  btnReload.classList.toggle('active', ammo < g.ammo && !isReloading);
+}
+
+// ═══════════════════════════════════════════════════════════
+// FIRE
+// ═══════════════════════════════════════════════════════════
+function fire(x, y) {
+  if (isReloading) return;
+  getAudio();
+  if (ammo <= 0) { playDryFire(); triggerReload(); return; }
+
+  const g = currentGun;
+  
+  // --- NUEVA LÓGICA DE POSICIÓN ---
+  // Obtenemos las coordenadas reales de la punta del cañón (muzzle flash)
+  const rect = muzzleFlash.getBoundingClientRect();
+  const muzzleX = rect.left + rect.width / 2;
+  const muzzleY = rect.top + rect.height / 2;
+  // --------------------------------
+
+  if (g.minigun) { handleMinigun(muzzleX, muzzleY); return; } // Usar muzzleX/Y
+  if (g.flame)   { handleFlame(muzzleX, muzzleY);   return; } // Usar muzzleX/Y
+
+  ammo--;
+  earnCoin(g.cat);
+  updateHUD();
+  playShot(g);
+  doRecoil(g);
+  doMuzzleFlash(g);
+  doScreenFlash(g);
+  
+  
+  // Cambiamos 'x, y' por 'muzzleX, muzzleY' en los efectos:
+  if (g.pellets) spawnPellets(muzzleX, muzzleY);
+  else { 
+    spawnSmoke(muzzleX, muzzleY, 4); 
+    spawnImpact(muzzleX, muzzleY); 
+  }
+  
+  spawnTracer(x, y, g); // El tracer sí debe ir hacia donde presionaste (x, y)
+
+  if (ammo === 0) setTimeout(() => triggerReload(), 200);
+}
+
+// ── MINIGUN ──
+function handleMinigun(x, y) {
+  if (!minigunSpinning) {
+    minigunSpinning = true;
+    spinInd.style.animation = 'none';
+    spinInd.style.opacity = '1';
+    spinInd.style.animation = 'spin 0.3s linear infinite';
+    heat.style.opacity = '0.6';
+    minigunInterval = setInterval(() => {
+      if (ammo <= 0) { stopMinigun(); triggerReload(); return; }
+      ammo--;
+      earnCoin(currentGun.cat);
+      updateHUD();
+      playMinigun();
+      doMuzzleFlash(currentGun);
+      doScreenFlash(currentGun);
+      spawnSmoke(x, y, 2);
+      spawnImpact(x + (Math.random()-0.5)*30, y + (Math.random()-0.5)*30);
+    }, 60);
+  }
+}
+function stopMinigun() {
+  minigunSpinning = false;
+  if (minigunInterval) { clearInterval(minigunInterval); minigunInterval = null; }
+  spinInd.style.opacity = '0';
+  heat.style.opacity = '0';
+}
+
+// ── FLAMETHROWER ──
+function handleFlame(x, y) {
+  if (ammo <= 0) { triggerReload(); return; }
+  ammo--;
+  updateHUD();
+  playFlame();
+  flame.style.opacity = '1';
+  flame.style.animation = 'none';
+  setTimeout(() => { flame.style.opacity = '0'; }, 150);
+  for (let i = 0; i < 12; i++) spawnFlameParticle(x, y);
+  screenFlash.style.background = 'rgba(255,80,0,0.15)';
+  screenFlash.style.opacity = '1';
+  setTimeout(() => screenFlash.style.opacity = '0', 80);
+  if (ammo === 0) setTimeout(() => triggerReload(), 200);
+}
+
+// ── RECOIL ──
+const RECOIL_ANIMS = {
+  vlight: ['recoilVLight', 150],
+  light:  ['recoilLight',  200],
+  medium: ['recoilMedium', 280],
+  heavy:  ['recoilHeavy',  400],
+  vheavy: ['recoilVHeavy', 550],
+  none:   [null, 0],
+};
+function doRecoil(g) {
+  const [anim, dur] = RECOIL_ANIMS[g.recoil] || RECOIL_ANIMS.light;
+  if (!anim) return;
+  gunWrap.style.animation = 'none';
+  void gunWrap.offsetWidth;
+  gunWrap.style.animation = `${anim} ${dur}ms cubic-bezier(0.08,0.6,0.25,1)`;
+}
+
+// ── MUZZLE FLASH ──
+function doMuzzleFlash(g) {
+  const scale = {sniper:1.2,assault:0.9,smg:0.6,pistol:0.7,shotgun:1.5,lmg:1.0,special:0.5}[g.cat] || 0.8;
+  muzzleFlash.style.transition = 'none';
+  muzzleFlash.style.opacity = '1';
+  muzzleFlash.style.transform = `translateY(-50%) scale(${scale})`;
+  muzzleFlash.style.right = (g.cat==='pistol'||g.cat==='smg') ? '-8%' : '-3%';
+  setTimeout(() => {
+    muzzleFlash.style.transition = 'opacity 0.07s,transform 0.07s';
+    muzzleFlash.style.opacity = '0';
+    muzzleFlash.style.transform = `translateY(-50%) scale(${scale*1.5})`;
+  }, 35);
+}
+
+// ── SCREEN FLASH ──
+function doScreenFlash(g) {
+  const a = {
+    sniper:'rgba(255,255,255,0.12)',assault:'rgba(255,255,255,0.07)',
+    smg:'rgba(255,255,255,0.05)',pistol:'rgba(255,255,255,0.08)',
+    shotgun:'rgba(255,255,255,0.18)',lmg:'rgba(255,255,255,0.08)',
+    special:'rgba(255,80,0,0.15)'
+  }[g.cat] || 'rgba(255,255,255,0.08)';
+  screenFlash.style.background = a;
+  screenFlash.style.opacity = '1';
+  setTimeout(() => { screenFlash.style.transition='opacity 0.1s'; screenFlash.style.opacity='0'; }, 25);
+}
+
+// ═══════════════════════════════════════════════════════════
+// PARTICLES
+// ═══════════════════════════════════════════════════════════
+
+function spawnSmoke(cx, cy, count=4) {
+  for (let i=0; i<count; i++) {
+    const s = document.createElement('div'); s.className = 'smoke';
+    const size = Math.random()*28+12;
+    s.style.width = size+'px'; s.style.height = size+'px';
+    s.style.left  = (cx-size/2)+'px'; s.style.top = (cy-size/2)+'px';
+    s.style.setProperty('--dx', (Math.random()*70-35)+'px');
+    s.style.setProperty('--dy', (Math.random()*(-70)-5)+'px');
+    s.style.animationDuration = (Math.random()*400+550)+'ms';
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 1000);
+  }
+}
+function spawnImpact(cx, cy) {
+  const wrapRect = gunWrap.getBoundingClientRect();
+  const imp = document.createElement('div'); imp.className = 'impact';
+  imp.style.left = (cx - wrapRect.left - 5)+'px';
+  imp.style.top  = (cy - wrapRect.top  - 5)+'px';
+  gunWrap.appendChild(imp);
+  setTimeout(() => imp.remove(), 400);
+}
+function spawnPellets(cx, cy) {
+  for (let i=0; i<7; i++) {
+    const p = document.createElement('div'); p.className = 'pellet';
+    p.style.left = (cx-3)+'px'; p.style.top = (cy-3)+'px';
+    const angle = Math.random()*Math.PI*2;
+    const dist  = Math.random()*80+20;
+    p.style.setProperty('--px', Math.cos(angle)*dist+'px');
+    p.style.setProperty('--py', Math.sin(angle)*dist+'px');
+    p.style.setProperty('--dur', (Math.random()*100+350)+'ms');
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 500);
+  }
+  spawnSmoke(cx, cy, 6);
+}
+function spawnFlameParticle(cx, cy) {
+  const p = document.createElement('div'); p.className = 'flame-particle';
+  const size = Math.random()*40+20;
+  p.style.width = size+'px'; p.style.height = size+'px';
+  const colors = ['rgba(255,200,0,0.9)','rgba(255,120,0,0.9)','rgba(255,50,0,0.8)','rgba(255,255,100,0.8)'];
+  p.style.background = colors[Math.floor(Math.random()*colors.length)];
+  p.style.left = (cx+Math.random()*80-10)+'px';
+  p.style.top  = (cy-size/2+Math.random()*30-15)+'px';
+  p.style.setProperty('--fx', (Math.random()*160+40)+'px');
+  p.style.setProperty('--fy', (Math.random()*60-30)+'px');
+  p.style.setProperty('--fdur', (Math.random()*200+450)+'ms');
+  document.body.appendChild(p);
+  setTimeout(() => p.remove(), 700);
+}
+function spawnTracer(tx, ty, g) {
+  if (g.cat!=='sniper' && g.cat!=='lmg') return;
+  const gunRect = gunWrap.getBoundingClientRect();
+  const sx = gunRect.right; const sy = gunRect.top + gunRect.height*0.45;
+  const dx = tx-sx; const dy = ty-sy;
+  const len = Math.sqrt(dx*dx+dy*dy);
+  const angle = Math.atan2(dy,dx)*180/Math.PI;
+  const t = document.createElement('div'); t.className = 'tracer';
+  t.style.left  = sx+'px'; t.style.top = sy+'px';
+  t.style.width = len+'px';
+  t.style.transform = `rotate(${angle}deg)`;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 200);
+}
+
+// ═══════════════════════════════════════════════════════════
+// RELOAD
+// ═══════════════════════════════════════════════════════════
+function triggerReload() {
+  if (isReloading || ammo === currentGun.ammo) return;
+  isReloading = true;
+  playReloadSound(currentGun.id);
+  reloadBanner.style.opacity = '1';
+  reloadProgress.style.opacity = '1';
+  reloadFill.style.width = '0%';
+  btnReload.classList.remove('active');
+
+  const dur = {sniper:3000,shotgun:2500,lmg:2800,special:2200}[currentGun.cat] || 1400;
+  let elapsed = 0;
+  reloadProgressInterval = setInterval(() => {
+    elapsed += 50;
+    reloadFill.style.width = (elapsed/dur*100)+'%';
+    if (elapsed >= dur) clearInterval(reloadProgressInterval);
+  }, 50);
+
+  reloadTimer = setTimeout(() => {
+    ammo = currentGun.ammo;
+    isReloading = false;
+    updateHUD();
+    reloadBanner.style.transition = 'opacity 0.3s';
+    reloadBanner.style.opacity = '0';
+    reloadProgress.style.transition = 'opacity 0.3s';
+    reloadProgress.style.opacity = '0';
+  }, dur);
+}
+function stopReload() {
+  isReloading = false;
+  clearTimeout(reloadTimer);
+  clearInterval(reloadProgressInterval);
+  reloadBanner.style.opacity = '0';
+  reloadProgress.style.opacity = '0';
+}
+
+// ═══════════════════════════════════════════════════════════
+// INPUT
+// ═══════════════════════════════════════════════════════════
+const AUTO_CATS = ['assault','smg','lmg','special'];
+let autoFireInterval = null;
+let fireX = 0, fireY = 0;
+
+function startAutoFire() {
+  if (autoFireInterval) return;
+  const ms = Math.max(40, Math.round(300 - ((currentGun.rpm||60) * 2.5)));
+  autoFireInterval = setInterval(() => {
+    if (!currentGun || isReloading || ammo <= 0) { stopAutoFire(); return; }
+    fire(fireX, fireY);
+  }, ms);
+}
+function stopAutoFire() {
+  if (autoFireInterval) { clearInterval(autoFireInterval); autoFireInterval = null; }
+}
+
+const stage = document.getElementById('stage');
+stage.style.touchAction = 'none';
+
+stage.addEventListener('touchstart', e => {
+  e.preventDefault();
+  unlockAudio();
+  const t = e.changedTouches[0];
+  fireX = t.clientX; fireY = t.clientY;
+  const g = currentGun; if (!g) return;
+  if (g.minigun) { fire(fireX, fireY); return; }
+  fire(fireX, fireY);
+  if (AUTO_CATS.includes(g.cat) && !g.flame) startAutoFire();
+}, { passive: false });
+
+stage.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  fireX = t.clientX; fireY = t.clientY;
+}, { passive: false });
+
+stage.addEventListener('touchend', e => {
+  e.preventDefault();
+  stopAutoFire();
+  if (currentGun && currentGun.minigun && minigunSpinning) stopMinigun();
+}, { passive: false });
+
+stage.addEventListener('touchcancel', e => {
+  stopAutoFire();
+  if (currentGun && currentGun.minigun && minigunSpinning) stopMinigun();
+}, { passive: false });
+
+stage.addEventListener('mousedown', e => {
+  unlockAudio(); fireX = e.clientX; fireY = e.clientY;
+  const g = currentGun; if (!g) return;
+  if (g.minigun) { fire(fireX, fireY); return; }
+  fire(fireX, fireY);
+  if (AUTO_CATS.includes(g.cat) && !g.flame) startAutoFire();
+});
+stage.addEventListener('mousemove', e => { fireX = e.clientX; fireY = e.clientY; });
+stage.addEventListener('mouseup', () => {
+  stopAutoFire();
+  if (currentGun && currentGun.minigun && minigunSpinning) stopMinigun();
+});
+
+const btnReloadEl = document.getElementById('btn-reload');
+['touchstart','touchend','touchcancel','pointerdown','pointerup'].forEach(evt => {
+  btnReloadEl.addEventListener(evt, e => { e.stopPropagation(); e.preventDefault(); }, { passive: false });
+});
+btnReloadEl.addEventListener('touchend', e => {
+  e.stopPropagation(); e.preventDefault();
+  unlockAudio(); triggerReload();
+}, { passive: false });
+btnReloadEl.addEventListener('click', e => { e.stopPropagation(); triggerReload(); });
+
+document.addEventListener('mousemove', e => {
+  crosshairEl.style.left = e.clientX+'px';
+  crosshairEl.style.top  = e.clientY+'px';
+});
+document.addEventListener('keydown', e => {
+  if (e.key==='r' || e.key==='R') { unlockAudio(); triggerReload(); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// RECOIL KEYFRAMES
+// ═══════════════════════════════════════════════════════════
+const styleEl = document.createElement('style');
+styleEl.textContent = `
+@keyframes recoilVLight{ 0%{transform:rotate(0) translate(0,0)} 20%{transform:rotate(-2deg) translate(-4px,-4px)} 100%{transform:rotate(0) translate(0,0)} }
+@keyframes recoilLight{  0%{transform:rotate(0) translate(0,0)} 20%{transform:rotate(-5deg) translate(-8px,-8px)} 100%{transform:rotate(0) translate(0,0)} }
+@keyframes recoilMedium{ 0%{transform:rotate(0) translate(0,0)} 20%{transform:rotate(-8deg) translate(-14px,-10px)} 100%{transform:rotate(0) translate(0,0)} }
+@keyframes recoilHeavy{  0%{transform:rotate(0) translate(0,0)} 20%{transform:rotate(-12deg) translate(-20px,-14px)} 100%{transform:rotate(0) translate(0,0)} }
+@keyframes recoilVHeavy{ 0%{transform:rotate(0) translate(0,0)} 15%{transform:rotate(-18deg) translate(-28px,-20px)} 100%{transform:rotate(0) translate(0,0)} }
+@keyframes spin{ to{transform:translateY(-50%) rotate(360deg)} }
+`;
+document.head.appendChild(styleEl);
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+switchCategory('pistol');
+</script>
+</body>
+</html>
